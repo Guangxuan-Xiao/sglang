@@ -18,7 +18,7 @@ import torch
 from torch import nn
 from transformers import Qwen2Config
 
-from sglang.srt.layers.pooler import EmbeddingPoolerOutput
+from sglang.srt.layers.pooler import EmbeddingPoolerOutput, Pooler, PoolingType
 from sglang.srt.layers.quantization.base_config import QuantizationConfig
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
 from sglang.srt.models.qwen2 import Qwen2ForCausalLM, Qwen2Model
@@ -44,6 +44,7 @@ class Qwen2ForProcessRewardModel(nn.Module):
             nn.ReLU(),
             nn.Linear(config.hidden_size, self.num_labels),
         )
+        self.pooler = Pooler(pooling_type=PoolingType.LAST, normalize=False)
 
     @torch.no_grad()
     def forward(
@@ -57,7 +58,9 @@ class Qwen2ForProcessRewardModel(nn.Module):
         assert get_embedding, "Qwen2ForProcessRewardModel is only used for embedding"
         hidden_states = self.model(input_ids, positions, forward_batch, input_embeds)
         logits = self.score(hidden_states)
-        return EmbeddingPoolerOutput(logits)
+        pooled_logits = self.pooler(logits, forward_batch).embeddings
+        prob = torch.softmax(pooled_logits, dim=-1)[:, 1:]
+        return EmbeddingPoolerOutput(prob)
 
     def load_weights(self, weights: Iterable[Tuple[str, torch.Tensor]]):
         # Filter out lm_head weights of Qwen2ForCausalLM
