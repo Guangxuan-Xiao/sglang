@@ -372,6 +372,7 @@ class TokenizerManager:
                 )
             input_ids = self.tokenizer.encode(input_text)
 
+        image_inputs = None
         if self.is_generation:
             # TODO: also support getting embeddings for multimodal models
             image_inputs: Dict = await self.image_processor.process_images_async(
